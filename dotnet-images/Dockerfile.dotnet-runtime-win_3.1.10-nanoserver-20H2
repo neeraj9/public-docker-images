@@ -1,0 +1,30 @@
+# escape=`
+
+# Installer image based on ServerCore 20H2
+# which is required to install dotnet but our runtime
+# will still depend on NanoServer
+FROM mcr.microsoft.com/windows/servercore:20H2 AS installer
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $DebugPreference = 'Continue'; $VerbosePreference = 'Continue'; "]
+
+# Retrieve .NET Core Runtime
+# USER ContainerAdministrator
+RUN `
+    Invoke-WebRequest -OutFile dotnet-install.ps1 https://dot.net/v1/dotnet-install.ps1;
+
+
+RUN ./dotnet-install.ps1 -Runtime 'aspnetcore' -Version '3.1.10' -InstallDir 'C:/Program Files/dotnet' -Verbose
+
+# Runtime image 
+FROM mcr.microsoft.com/windows/nanoserver:20H2
+
+ENV `
+    # Enable detection of running in a container
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+# In order to set system PATH, ContainerAdministrator must be used
+USER ContainerAdministrator
+RUN setx /M PATH "%PATH%;C:\Program Files\dotnet"
+USER ContainerUser
+
+COPY --from=installer ["C:/Program Files/dotnet", "C:/Program Files/dotnet"]
